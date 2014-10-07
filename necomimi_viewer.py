@@ -15,6 +15,7 @@ import threading
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import thinkgear
+import variogram
 import numpy as np
 
 save_length_ms = 12000
@@ -36,22 +37,26 @@ def save() :
   for packets in thinkgear.ThinkGearProtocol(PORT).get_packets():
     for p in packets:
       if not isinstance(p, thinkgear.ThinkGearRawWaveData):
-        continue 
+        print p
+        continue
       with data_lock :
         data.insert(0, p.value)
         if buf_size < len(data) : data.pop()
 
-def update(i, sp1, sp2, sp3) :
+def update(i, sp1, sp2, sp3, sp4) :
   global data
 
   sp1.cla()
   sp2.cla()
   sp3.cla()
+  sp4.cla()
 
   with data_lock :
     sp1.plot(map(lambda x: x*(1.0/sample_rate), range(0, len(data))), data, 'r-')
     sp2.specgram(data, NFFT=sample_rate, Fs=sample_rate)
     sp3.psd(data[:sample_rate], NFFT=sample_rate, Fs=sample_rate)
+    sp4.plot(map(lambda x: x*(1.0/sample_rate), range(0, len(data), sample_rate/32)),
+      variogram.alpha(data, sample_rate, sample_rate, sample_rate/32), 'r-')
 
   sp1.set_xlabel("time")
   sp1.set_ylabel("TGAM1 raw data")
@@ -61,12 +66,17 @@ def update(i, sp1, sp2, sp3) :
   sp2.set_xlabel("time")
   sp2.set_ylabel("frequency")
   sp2.set_xlim([0, view_length_ms/1000.0])
-  sp2.set_ylim([0, 20])
+  sp2.set_ylim([0, 50])
 
-  sp3.set_xlim([0, 20])
-  sp3.set_ylim([0, 60])
   sp3.set_xlabel("frequency")
   sp3.set_ylabel("psd")
+  sp3.set_xlim([0, 50])
+  sp3.set_ylim([0, 60])
+
+  sp4.set_ylabel("variogram")
+  sp4.set_xlabel("time")
+  sp4.set_xlim([0, view_length_ms/1000.0])
+  sp4.set_ylim([0.6, 2.0])
 
 if __name__ == '__main__':
   t=threading.Thread(target=save)
@@ -74,9 +84,10 @@ if __name__ == '__main__':
   t.start()
   
   fig = plt.figure()
-  sp1 = fig.add_subplot(311)
-  sp2 = fig.add_subplot(312)
-  sp3 = fig.add_subplot(313)
+  sp1 = fig.add_subplot(411)
+  sp2 = fig.add_subplot(412)
+  sp3 = fig.add_subplot(413)
+  sp4 = fig.add_subplot(414)
 
-  ani = animation.FuncAnimation(fig, update, fargs=(sp1,sp2,sp3), interval=30)
+  ani = animation.FuncAnimation(fig, update, fargs=(sp1,sp2,sp3,sp4), interval=200)
   plt.show()
